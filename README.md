@@ -123,10 +123,3 @@ Esta prueba utiliza barreras de sincronización para coordinar solicitudes concu
 - **Pruebas de estrés:** Simulación de múltiples compradores para evaluar el comportamiento del sistema bajo condiciones de alta demanda.
 
 ---
-
-## 👨‍💻 Proyecto
-
-**Auditorio Plata - Sistema Concurrente de Boletaje**
-
-Desarrollado como proyecto académico para demostrar la aplicación de programación concurrente, bases de datos transaccionales, servicios web y mecanismos de seguridad en un sistema de emisión de boletos electrónicos.
-
