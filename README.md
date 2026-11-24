@@ -2,7 +2,7 @@
 
 Sistema backend de alta concurrencia desarrollado para la gestión, asignación de asientos y emisión segura de boletos electrónicos para el **Concierto Navideño 2026**.
 
-Gestiona un aforo total de **20,000 localidades**, divididas en tres áreas independientes (**VIP**, **Plata** y **General**), implementando exclusión mutua granular a nivel de base de datos, control de recursos de CPU y firmas criptográficas SHA-256.
+Gestiona un aforo total de **20,000 asientos**, divididas en tres áreas independientes (**VIP**, **Plata** y **General**), implementando exclusión mutua en cada área a nivel de base de datos, control de recursos de CPU y firmas criptográficas SHA-256.
 
 ---
 
@@ -45,13 +45,13 @@ sudo docker run -d \
   container-registry.oracle.com/database/free:latest
 ```
 
-Espera a que Oracle termine de inicializarse. Puedes comprobar el estado del contenedor con:
+Tenemos que esperar a que Oracle termine de inicializarse. Para comprobar el estado del contenedor debemos escribir el siguiente comando:
 
 ```bash
 sudo docker ps
 ```
 
-Una vez que el contenedor muestre el estado `healthy`, carga el esquema de la base de datos ejecutando `database_setup.sql` mediante SQL*Plus:
+Una vez que el contenedor muestre el estado `healthy`, debemos cargar el esquema de la base de datos ejecutando `database_setup.sql` mediante SQL*Plus:
 
 ```bash
 sqlplus system/Admin1234@FREEPDB1
@@ -59,7 +59,7 @@ sqlplus system/Admin1234@FREEPDB1
 
 **Ejecuciones posteriores (encender el contenedor existente):**
 
-Si el contenedor ya fue creado e inicializado anteriormente, solamente es necesario iniciarlo:
+Ahora que el contenedor ya fue creado e inicializado anteriormente, solamente es necesario iniciarlo con este siguiente comando:
 
 ```bash
 sudo docker start oracle-free
@@ -67,7 +67,7 @@ sudo docker start oracle-free
 
 ### 2. Configurar el Entorno Virtual de Python
 
-Crear y activar el entorno virtual:
+Crear y activar el entorno virtual con los siguientes dos comandos:
 
 ```bash
 python3 -m venv venv
@@ -88,9 +88,9 @@ Iniciar el servidor FastAPI con Uvicorn:
 uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-### 4. Exponer el Servidor a Internet (Opcional - Túnel de Cloudflare)
+### 4. Exponer el Servidor a Internet (Túnel de Cloudflare)
 
-En una terminal independiente, iniciar un túnel seguro hacia el puerto local `8000`, utilizando `http://` como origen local:
+En una terminal independiente, iniciamos un túnel seguro hacia el puerto local `8000`, utilizando `http://` como origen local:
 
 ```bash
 cloudflared tunnel --url http://localhost:8000
@@ -106,7 +106,7 @@ Esta dirección permitirá acceder al servidor desde cualquier red externa mient
 
 ---
 
-## 🏟️ Distribución de Zonas y Aforo (20,000 Localidades)
+## 🏟️ Distribución de Zonas y Aforo (20,000 asientos)
 
 El auditorio cuenta con tres zonas independientes, cada una con una capacidad y formato de identificación de asientos específico.
 
@@ -114,7 +114,7 @@ El auditorio cuenta con tres zonas independientes, cada una con una capacidad y 
 |---|---:|---|---|
 | **VIP** | 500 lugares | `VIP-001` a `VIP-500` | Dorado (`#d4af37`) |
 | **Plata** | 1,500 lugares | `PLATA-0001` a `PLATA-1500` | Plateado (`#94a3b8`) |
-| **General** | 18,000 lugares | `GENERAL-00001` a `GENERAL-18000` | Verde Bosque (`#15803d`) |
+| **General** | 18,000 lugares | `GENERAL-00001` a `GENERAL-18000` | Verde (`#15803d`) |
 | **TOTAL** | **20,000 lugares** | | |
 
 ---
@@ -126,7 +126,7 @@ Una vez que el servidor esté en ejecución, se puede acceder a los siguientes m
 | Módulo | Ruta / Endpoint | Descripción |
 |---|---|---|
 | 🏠 **Landing Page Pública** | `GET /` | Interfaz web navideña dividida en tres tarjetas seleccionables (**VIP**, **Plata** y **General**) que solicita el boleto del área elegida y descarga automáticamente el PDF. |
-| 🎟️ **Emisión de Boletos** | `POST /solicitar_boleto?zona=VIP` | Procesa la compra atómica para la zona indicada (`VIP`, `PLATA` o `GENERAL`; por defecto `GENERAL`), asigna folio y asiento consecutivo, y devuelve el PDF binario. |
+| 🎟️ **Emisión de Boletos** | `POST /solicitar_boleto?zona=VIP` | Procesa la compra única para la zona indicada (`VIP`, `PLATA` o `GENERAL`; por defecto `GENERAL`), asigna folio y asiento consecutivo, y devuelve el PDF. |
 | 📊 **Monitor en Tiempo Real** | `GET /dashboard` | Panel visual con actualización automática (*polling* cada 400 ms) que muestra el aforo global y barras de ocupación individuales por cada zona. |
 | 📡 **Consulta de Estado** | `GET /estado` | Endpoint REST que retorna en formato JSON la disponibilidad global y el desglose detallado de boletos emitidos por área. |
 | 📚 **Documentación Interactiva** | `GET /docs` | Interfaz Swagger UI / OpenAPI autogenerada por FastAPI para probar los endpoints HTTP y la emisión manual por zona. |
@@ -135,7 +135,7 @@ Una vez que el servidor esté en ejecución, se puede acceder a los siguientes m
 
 ## 🧪 Ejecución de Pruebas de Estrés
 
-Para ejecutar las pruebas, abrir una terminal independiente y activar el entorno virtual de Python:
+Para ejecutar las pruebas, abrimos una terminal independiente y activamos el entorno virtual de Python:
 
 ```bash
 source venv/bin/activate
@@ -143,13 +143,13 @@ source venv/bin/activate
 
 ### Fase 3: Prueba de distribución de carga (Spawner)
 
-Ejecutar el siguiente comando:
+Ejecutamos el siguiente comando:
 
 ```bash
 python spawner.py
 ```
 
-Permite inyectar **100 solicitudes concurrentes** dentro de una ventana de **60 segundos**, utilizando tres algoritmos de tráfico:
+Permite inyectar **100 solicitudes concurrentes** dentro de una ventana de **60 segundos**, utilizando tres algoritmos de tráfico que son los siguientes:
 
 - **Distribución uniforme:** solicitudes distribuidas de manera constante durante el periodo de prueba.
 - **Solicitudes en ráfagas:** múltiples solicitudes enviadas en intervalos cortos.
@@ -157,7 +157,7 @@ Permite inyectar **100 solicitudes concurrentes** dentro de una ventana de **60 
 
 ### Fase 4: Prueba de límite extremo y Sold Out (Barreras)
 
-Ejecutar:
+Ejecutamos este comando para generar el ataque a la página de la venta de boletos:
 
 ```bash
 python ataque_barrera.py
@@ -165,6 +165,6 @@ python ataque_barrera.py
 
 Utiliza barreras de sincronización (`threading.Barrier`) para liberar todos los hilos en el mismo instante, comprobando que la exclusión mutua en Oracle rechace de forma determinista cualquier solicitud que exceda el cupo de la zona o del auditorio.
 
-El objetivo es garantizar que no exista sobreventa de localidades (*overselling*), incluso bajo condiciones de concurrencia extrema.
+El objetivo es garantizar que no exista sobreventa de asientos (*overselling*), incluso bajo condiciones de concurrencia extrema.
 
 ---
