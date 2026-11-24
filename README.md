@@ -1,6 +1,8 @@
 # 🎟️ Auditorio Plata - Sistema Concurrente de Boletaje
 
-Sistema backend de alta concurrencia desarrollado para la gestión y emisión segura de boletos electrónicos para el **"Concierto Navideño"**. Implementa mecanismos de exclusión mutua a nivel de base de datos, control de recursos de CPU y firmas criptográficas SHA-256.
+Sistema backend de alta concurrencia desarrollado para la gestión, asignación de asientos y emisión segura de boletos electrónicos para el **Concierto Navideño 2026**.
+
+Gestiona un aforo total de **20,000 localidades**, divididas en tres áreas independientes (**VIP**, **Plata** y **General**), implementando exclusión mutua granular a nivel de base de datos, control de recursos de CPU y firmas criptográficas SHA-256.
 
 ---
 
@@ -8,10 +10,11 @@ Sistema backend de alta concurrencia desarrollado para la gestión y emisión se
 
 - **Lenguaje:** Python 3.10+
 - **Framework Web:** FastAPI (Uvicorn ASGI).
-- **Base de Datos:** Oracle AI Database Free (Docker Container).
-- **Procesamiento Gráfico:** ReportLab, qrcode y Pillow (generación de PDF y códigos QR en memoria RAM).
-- **Control de Concurrencia:** `threading` (Locks, Semaphores y Barriers).
-- **Transacciones:** Propiedades ACID mediante `SELECT ... FOR UPDATE`.
+- **Base de Datos:** Oracle AI Database Free (Docker Container `FREEPDB1`).
+- **Procesamiento Gráfico:** ReportLab, `qrcode` y Pillow (generación dinámica de PDF y códigos QR en memoria RAM).
+- **Control de Concurrencia:** `threading` (`Lock`, `Semaphore` y `Barrier`).
+- **Transacciones:** Propiedades ACID y bloqueo granular por fila mediante `SELECT ... FOR UPDATE`.
+- **Exposición Pública:** Cloudflare Tunnel (`cloudflared`) con cifrado HTTPS automático.
 
 ---
 
@@ -19,12 +22,12 @@ Sistema backend de alta concurrencia desarrollado para la gestión y emisión se
 
 | Archivo | Descripción |
 |---|---|
-| `main.py` | Servidor FastAPI, endpoints REST y Landing Page navideña. |
-| `ticket_generator.py` | Módulo de generación de PDFs con firma digital SHA-256. |
-| `spawner.py` | Orquestador de pruebas de estrés (modos uniforme, ráfagas y aleatorio). |
-| `ataque_barrera.py` | Script de prueba de límite extremo (*Sold Out*) mediante barreras de sincronización. |
-| `database_setup.sql` | Esquema relacional, secuencias y procedimientos almacenados en PL/SQL. |
-| `.gitignore` | Configuración para excluir entornos virtuales, caché y archivos temporales. |
+| `main.py` | Servidor FastAPI, endpoints REST, Landing Page navideña con selección de áreas y Dashboard en tiempo real por zona. |
+| `ticket_generator.py` | Generador unificado de boletos PDF en memoria RAM con diseño adaptativo por zona, asignación de asiento, código QR y firma digital SHA-256. |
+| `spawner.py` | Orquestador de pruebas de estrés multihilo (modos uniforme, ráfagas y aleatorio). |
+| `ataque_barrera.py` | Script de prueba de contención extrema (*Sold Out*) mediante barreras de sincronización (`threading.Barrier`). |
+| `database_setup.sql` | Esquema relacional (`Evento`, `Zona`, `Boleto`), secuencia atómica `seq_folio`, procedimiento almacenado PL/SQL y utilidades de reinicio. |
+| `.gitignore` | Configuración para excluir entornos virtuales (`venv`), caché y archivos temporales. |
 
 ---
 
@@ -32,7 +35,7 @@ Sistema backend de alta concurrencia desarrollado para la gestión y emisión se
 
 ### 1. Levantar la Base de Datos (Oracle)
 
-Ejecutar el siguiente comando para iniciar el contenedor de Oracle AI Database Free:
+**Primera ejecución (creación e inicialización del contenedor):**
 
 ```bash
 sudo docker run -d \
@@ -42,9 +45,29 @@ sudo docker run -d \
   container-registry.oracle.com/database/free:latest
 ```
 
+Espera a que Oracle termine de inicializarse. Puedes comprobar el estado del contenedor con:
+
+```bash
+sudo docker ps
+```
+
+Una vez que el contenedor muestre el estado `healthy`, carga el esquema de la base de datos ejecutando `database_setup.sql` mediante SQL*Plus:
+
+```bash
+sqlplus system/Admin1234@FREEPDB1
+```
+
+**Ejecuciones posteriores (encender el contenedor existente):**
+
+Si el contenedor ya fue creado e inicializado anteriormente, solamente es necesario iniciarlo:
+
+```bash
+sudo docker start oracle-free
+```
+
 ### 2. Configurar el Entorno Virtual de Python
 
-Crear y activar un entorno virtual:
+Crear y activar el entorno virtual:
 
 ```bash
 python3 -m venv venv
@@ -65,26 +88,58 @@ Iniciar el servidor FastAPI con Uvicorn:
 uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
+### 4. Exponer el Servidor a Internet (Opcional - Túnel de Cloudflare)
+
+En una terminal independiente, iniciar un túnel seguro hacia el puerto local `8000`, utilizando `http://` como origen local:
+
+```bash
+cloudflared tunnel --url http://localhost:8000
+```
+
+Cloudflare generará una URL pública con certificado SSL:
+
+```text
+https://<subdominio-aleatorio>.trycloudflare.com
+```
+
+Esta dirección permitirá acceder al servidor desde cualquier red externa mientras el túnel permanezca activo.
+
+---
+
+## 🏟️ Distribución de Zonas y Aforo (20,000 Localidades)
+
+El auditorio cuenta con tres zonas independientes, cada una con una capacidad y formato de identificación de asientos específico.
+
+| Zona | Capacidad | Formato de Asiento | Distintivo Visual |
+|---|---:|---|---|
+| **VIP** | 500 lugares | `VIP-001` a `VIP-500` | Dorado (`#d4af37`) |
+| **Plata** | 1,500 lugares | `PLATA-0001` a `PLATA-1500` | Plateado (`#94a3b8`) |
+| **General** | 18,000 lugares | `GENERAL-00001` a `GENERAL-18000` | Verde Bosque (`#15803d`) |
+| **TOTAL** | **20,000 lugares** | | |
+
 ---
 
 ## 🌐 Endpoints e Interfaces Disponibles
 
-Una vez que el servidor esté en ejecución, se puede acceder a los siguientes módulos desde el navegador:
+Una vez que el servidor esté en ejecución, se puede acceder a los siguientes módulos desde el navegador. También es posible sustituir `http://localhost:8000` por la URL pública generada por Cloudflare.
 
-**Dirección principal:** `http://localhost:8000`
-
-| Módulo | URL | Descripción |
+| Módulo | Ruta / Endpoint | Descripción |
 |---|---|---|
-| 🏠 Landing Page Pública | `http://localhost:8000/` | Interfaz gráfica interactiva con temática navideña y efecto cristal. Cuenta con un botón de compra segura que procesa la solicitud y descarga automáticamente el PDF del boleto. |
-| 📊 Monitor en Tiempo Real | `http://localhost:8000/dashboard` | Panel visual con actualización automática (*polling* cada 200 ms) que muestra el número de boletos emitidos y los lugares disponibles. |
-| 📡 Consulta de Estado | `http://localhost:8000/estado` | Endpoint RESTful que retorna el estado actual del aforo y los contadores en formato JSON. |
-| 📚 Documentación Interactiva | `http://localhost:8000/docs` | Interfaz Swagger UI / OpenAPI autogenerada por FastAPI para probar los endpoints HTTP y la emisión manual de folios. |
+| 🏠 **Landing Page Pública** | `GET /` | Interfaz web navideña dividida en tres tarjetas seleccionables (**VIP**, **Plata** y **General**) que solicita el boleto del área elegida y descarga automáticamente el PDF. |
+| 🎟️ **Emisión de Boletos** | `POST /solicitar_boleto?zona=VIP` | Procesa la compra atómica para la zona indicada (`VIP`, `PLATA` o `GENERAL`; por defecto `GENERAL`), asigna folio y asiento consecutivo, y devuelve el PDF binario. |
+| 📊 **Monitor en Tiempo Real** | `GET /dashboard` | Panel visual con actualización automática (*polling* cada 400 ms) que muestra el aforo global y barras de ocupación individuales por cada zona. |
+| 📡 **Consulta de Estado** | `GET /estado` | Endpoint REST que retorna en formato JSON la disponibilidad global y el desglose detallado de boletos emitidos por área. |
+| 📚 **Documentación Interactiva** | `GET /docs` | Interfaz Swagger UI / OpenAPI autogenerada por FastAPI para probar los endpoints HTTP y la emisión manual por zona. |
 
 ---
 
 ## 🧪 Ejecución de Pruebas de Estrés
 
-Para ejecutar las pruebas, es necesario abrir una terminal independiente y activar el entorno virtual de Python.
+Para ejecutar las pruebas, abrir una terminal independiente y activar el entorno virtual de Python:
+
+```bash
+source venv/bin/activate
+```
 
 ### Fase 3: Prueba de distribución de carga (Spawner)
 
@@ -94,11 +149,11 @@ Ejecutar el siguiente comando:
 python spawner.py
 ```
 
-Este script permite realizar pruebas de carga utilizando diferentes patrones de distribución de solicitudes:
+Permite inyectar **100 solicitudes concurrentes** dentro de una ventana de **60 segundos**, utilizando tres algoritmos de tráfico:
 
-- Distribución uniforme.
-- Solicitudes en ráfagas.
-- Distribución aleatoria.
+- **Distribución uniforme:** solicitudes distribuidas de manera constante durante el periodo de prueba.
+- **Solicitudes en ráfagas:** múltiples solicitudes enviadas en intervalos cortos.
+- **Distribución aleatoria:** solicitudes generadas en momentos aleatorios.
 
 ### Fase 4: Prueba de límite extremo y Sold Out (Barreras)
 
@@ -108,18 +163,8 @@ Ejecutar:
 python ataque_barrera.py
 ```
 
-Esta prueba utiliza barreras de sincronización para coordinar solicitudes concurrentes y comprobar que el sistema respete el límite máximo de boletos disponibles, evitando la sobreventa (*overselling*).
+Utiliza barreras de sincronización (`threading.Barrier`) para liberar todos los hilos en el mismo instante, comprobando que la exclusión mutua en Oracle rechace de forma determinista cualquier solicitud que exceda el cupo de la zona o del auditorio.
 
----
-
-## 🔐 Características Principales
-
-- **Concurrencia:** Gestión de múltiples solicitudes simultáneas.
-- **Exclusión mutua:** Protección de los registros mediante bloqueos a nivel de base de datos.
-- **Integridad transaccional:** Uso de transacciones ACID para garantizar la consistencia de los datos.
-- **Seguridad criptográfica:** Generación de firmas SHA-256 para verificar la integridad de los boletos.
-- **Generación dinámica:** Creación de boletos electrónicos en formato PDF con códigos QR.
-- **Monitoreo:** Visualización del estado del aforo en tiempo real.
-- **Pruebas de estrés:** Simulación de múltiples compradores para evaluar el comportamiento del sistema bajo condiciones de alta demanda.
+El objetivo es garantizar que no exista sobreventa de localidades (*overselling*), incluso bajo condiciones de concurrencia extrema.
 
 ---
